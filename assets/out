@@ -183,10 +183,17 @@ if [ -z "$commented" ] && [ "$create_comments" == "true" ]; then
   bitbucket_pullrequest_add_comment_status "$repo_host" "$repo_project" "$repo_name" "$prq_number" "$comment_message" "" "$skip_ssl_verification" >/dev/null
 fi
 
+
+to_hash=""
+if [ "$rebuild_when_target_changed" == "true" ]; then
+  to_hash="$target_commit"
+fi
+
 jq -n "{
   version: {
     id: \"$prq_number\",
-    hash: \"$prq_hash\",
+    from: \"$source_commit\",
+    to: \"$to_hash\",
     date: \"$PULL_REQUEST_DATE\"
   },
   metadata: $(pullrequest_metadata "$prq_number" "$uri" "$skip_ssl_verification")

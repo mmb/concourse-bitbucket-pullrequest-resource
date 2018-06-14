@@ -101,6 +101,16 @@ bitbucket_pullrequest() {
   bitbucket_request "$1" "projects/$2/repos/$3/pull-requests/$4" "" "" "" "$6" "$5"
 }
 
+bitbucket_pullrequests() {
+  # $1: host
+  # $2: project
+  # $3: repository id
+  # $4: netrc file (default: $HOME/.netrc)
+  # $5: skip ssl verification
+  log "Retrieving all open pull requests for $2/$3"
+  bitbucket_request "$1" "projects/$2/repos/$3/pull-requests" "" "" "" "$5" "$4"
+}
+
 bitbucket_pullrequest_merge() {
   # $1: host
   # $2: project
