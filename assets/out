@@ -7,8 +7,11 @@ exec 3>&1 # make stdout available as fd 3 for the result
 exec 1>&2 # redirect all output to stderr for logging
 
 ASSETS=$(cd "$(dirname "$0")" && pwd)
+# shellcheck source=helpers/git.sh
 source $ASSETS/helpers/git.sh
+# shellcheck source=helpers/utils.sh
 source $ASSETS/helpers/utils.sh
+# shellcheck source=helpers/bitbucket.sh
 source $ASSETS/helpers/bitbucket.sh
 
 # for all temporary files in 'out'
@@ -41,6 +44,7 @@ uri=$(jq -r '.source.uri // ""' < "$payload")
 git_config_payload=$(jq -r '.source.git_config // []' < "$payload")
 rebuild_when_target_changed=$(jq -r '.source.rebuild_when_target_changed // "false"' < "$payload")
 rebuild_phrase=$(jq -r '.source.rebuild_phrase // "test this please"' < "$payload")
+create_comments=$(jq -r '.source.create_comments // "false"' < "$payload")
 
 path=$(jq -r '.params.path // ""' < "$payload")
 status=$(jq -r '.params.status // ""' < "$payload")
@@ -152,7 +156,12 @@ data=$(jq -cn "{
 bitbucket_pullrequest_commit_status "$repo_host" "$source_commit" "$data" "" "" "$skip_ssl_verification"
 
 # use the pullrequest date stored in git config in get
-prq_verify_date=$(git config --get pullrequest.date | cat)
+PULL_REQUEST_DATE=$(git config --get pullrequest.date | cat)
+
+# Add branch name to additional comment
+if [ -n "$additionnal_comment" ]; then
+  additionnal_comment="${additionnal_comment//\[\[BRANCH\]\]/$branch}"
+fi
 
 # Add branch name to additional comment
 if [ -n "$additionnal_comment" ]; then
@@ -163,7 +172,6 @@ fi
 comment_message=$(bitbucket_pullrequest_progress_comment "$status" "$prq_hash" "$source_commit" "$target_commit", "$additionnal_comment")
 comments=$(bitbucket_pullrequest_overview_comments "$repo_host" "$repo_project" "$repo_name" "$prq_number" "" "$skip_ssl_verification" | jq -c '.[]')
 commented=""
-skip_verify=false
 if [ -n "$comments" ]; then
   while read -r comment; do
     id=$(echo "$comment" | jq -r '.id')
@@ -171,28 +179,15 @@ if [ -n "$comments" ]; then
     version=$(echo "$comment" | jq -r '.version')
 
     # check for progress messages => if pull request number matches then edit comment (instead of creating a new one)
-    if [ -z "$commented" ]; then
-      if bitbucket_pullrequest_progress_commit_match "$text" "$prq_hash" "Started"; then
-        bitbucket_pullrequest_update_comment_status "$repo_host" "$repo_project" "$repo_name" "$prq_number" "$comment_message" "$id" "$version" "" "$skip_ssl_verification" >/dev/null
-        commented=true
-      fi
-    fi
-
-    # edit timestamp to force new build when rebuild_phrase is included in comments
-    if [ "$skip_verify" != "true" ]; then
-      if echo "$text" | grep -Ec "$rebuild_phrase" > /dev/null; then
-        prq_verify_date=$(date_from_epoch_seconds $(( ($(echo "$comment" | jq -r '.createdDate') + 500) / 1000)))
-        skip_verify=true
-      fi
-    fi
-
-    if [ "$skip_verify" == "true" -a "$commented" == "true" ]; then
+    if bitbucket_pullrequest_progress_commit_match "$text" "$prq_hash" "Started" && [ "$create_comments" == "true" ]; then
+      bitbucket_pullrequest_update_comment_status "$repo_host" "$repo_project" "$repo_name" "$prq_number" "$comment_message" "$id" "$version" "" "$skip_ssl_verification" >/dev/null
+      commented=true
       break
     fi
   done <<< "$comments"
 fi
 
-if [ -z "$commented" ]; then
+if [ -z "$commented" ] && [ "$create_comments" == "true" ]; then
   bitbucket_pullrequest_add_comment_status "$repo_host" "$repo_project" "$repo_name" "$prq_number" "$comment_message" "" "$skip_ssl_verification" >/dev/null
 fi
 
@@ -200,7 +195,7 @@ jq -n "{
   version: {
     id: \"$prq_number\",
     hash: \"$prq_hash\",
-    date: \"$prq_verify_date\"
+    date: \"$PULL_REQUEST_DATE\"
   },
   metadata: $(pullrequest_metadata "$prq_number" "$uri" "$skip_ssl_verification")
 }" >&3

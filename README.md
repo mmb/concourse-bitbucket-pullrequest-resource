@@ -1,5 +1,10 @@
-> This resource is no longer actively maintained. Please refer to a maintained fork here: https://github.com/mmb/concourse-bitbucket-pullrequest-resource. <br>
-> Any pull requests should be done on the forementioned fork. They won't be merged here!
+[![Build Status](https://travis-ci.org/mmb/concourse-bitbucket-pullrequest-resource.svg?branch=master)](https://travis-ci.org/mmb/concourse-bitbucket-pullrequest-resource)
+
+This resource is a fork of
+https://github.com/laurentverbruggen/concourse-bitbucket-pullrequest-resource.
+
+That resource is no longer maintained but this one will continue to be
+developed.
 
 # Concourse Bitbucket Pull Request Resource
 
@@ -18,13 +23,13 @@ Use this resource by adding the following to the `resource_types` section of a p
 ```yaml
 ---
 resource_types:
-- name: concourse-bitbucket-pullrequest
-  type: docker-image
-  source:
-    repository: laurentverbruggen/concourse-bitbucket-pullrequest-resource
+  - name: concourse-bitbucket-pullrequest
+    type: docker-image
+    source:
+      repository: mm62/concourse-bitbucket-pullrequest-resource
 ```
 
-See [concourse docs](http://concourse.ci/configuring-resource-types.html) for more details on adding `resource_types` to a pipeline config.
+See [concourse docs](https://concourse-ci.org/resource-types.html) for more details on adding `resource_types` to a pipeline config.
 
 ## Source Configuration
 
@@ -73,6 +78,8 @@ It will accept a regular expression as determined by [egrep](http://linuxcommand
 If a match is found the pull request will be rebuilt.
 * `trace`: *Optional (default: false).* If set to `true`, scripts will run with `-x` to echo the actual commands. Useful for debugging.
 
+* `create_comments`: *Optional (default: false).* If true write comments with build status to pull requests.
+
 ## Behavior
 
 ### `check`: Search for pull requests to build.
@@ -84,7 +91,7 @@ Check will return a version for every pull request that matches the criteria def
 Clones the repository to the destination, and locks it down to a given ref.
 
 ** IMPORTANT **
-It is essential that you set the [version](https://concourse.ci/get-step.html#get-version) to `every` on the get step of your job configuration.
+It is essential that you set the [version](https://concourse-ci.org/get-step.html#get-step-version) to `every` on the get step of your job configuration.
 It will allow you to build all versions instead of only the latest.
 
 Submodules are initialized and updated recursively.
@@ -114,7 +121,14 @@ Set the status message on specified pull request.
 
 * `status`: *Required.* The status of success, failure or pending.
 
-  * [`on_success`](https://concourse.ci/on-success-step.html) and [`on_failure`](https://concourse.ci/on-failure-step.html) triggers may be useful for you when you wanted to reflect build result to the pull request (see the example below).
+  * [`on_success`](https://concourse-ci.org/on-success-step-hook.html) and [`on_failure`](https://concourse-ci.org/on-failure-step-hook.html) triggers may be useful for you when you wanted to reflect build result to the pull request (see the example below).
+
+* `comment`: *Optional.* A custom comment that you want added to the status message.
+  Any occurence of `[[BRANCH]]` will be replace by the actual branch name form the
+  pull request.
+
+* `commentFile`: *Optional.* The path to a file that contains a custom comment to
+  add to the message. This allow the comment to be built by a previous task in the job.
 
 * `comment`: *Optional.* A custom comment that you want added to the status message.
   Any occurence of `[[BRANCH]]` will be replace by the actual branch name form the
@@ -127,46 +141,46 @@ Set the status message on specified pull request.
 
 ```yaml
 resource_types:
-- name: concourse-bitbucket-pullrequest
-  type: docker-image
-  source:
-    repository: laurentverbruggen/concourse-bitbucket-pullrequest-resource
+  - name: concourse-bitbucket-pullrequest
+    type: docker-image
+    source:
+      repository: mm62/concourse-bitbucket-pullrequest-resource
 
 resources:
-- name: pullrequest
-  type: concourse-bitbucket-pullrequest
-  source:
-    username: {{bitbucket-username}}
-    password: {{bitbucket-password}}
-    uri: laurentverbruggen/concourse-bitbucket-pullrequest-resource
+  - name: pullrequest
+    type: concourse-bitbucket-pullrequest
+    source:
+      username: {{bitbucket-username}}
+      password: {{bitbucket-password}}
+      uri: https://your-bitbucket.com/project/repo
 
 jobs:
-- name: test pull request
-  plan:
-  - get: pullrequest
-    trigger: true
-    version: every
-  - put: pullrequest
-    params:
-      path: pullrequest
-      status: pending
-  - task: test
-    config:
-      platform: linux
+  - name: test pull request
+    plan:
+      - get: pullrequest
+        trigger: true
+        version: every
+      - put: pullrequest
+        params:
+          path: pullrequest
+          status: pending
+      - task: test
+        config:
+          platform: linux
 
-      inputs:
-      - name: pullrequest
+          inputs:
+          - name: pullrequest
 
-      ...
+          ...
 
-    on_success:
-      put: pullrequest
-      params:
-        path: pullrequest
-        status: success
-    on_failure:
-      put: pullrequest
-      params:
-        path: pullrequest
-        status: failure
+      on_success:
+        put: pullrequest
+        params:
+          path: pullrequest
+          status: success
+      on_failure:
+        put: pullrequest
+        params:
+          path: pullrequest
+          status: failure
 ```

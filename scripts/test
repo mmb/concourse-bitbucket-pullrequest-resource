@@ -1,24 +1,21 @@
 #!/bin/bash
 
+set -eu
+
+set +e
+docker run --interactive --rm hadolint/hadolint < Dockerfile
+docker run --interactive --rm --volume "$PWD:/mnt" koalaman/shellcheck \
+  --color=always \
+  /mnt/assets/check \
+  /mnt/assets/helpers/askpass.sh \
+  /mnt/assets/helpers/bitbucket.sh \
+  /mnt/assets/helpers/git.sh \
+  /mnt/assets/helpers/utils.sh \
+  /mnt/assets/in \
+  /mnt/assets/out \
+  /mnt/install_git_lfs.sh \
+  /mnt/scripts/test
 set -e
 
-not_installed() {
-  ! command -v $1 > /dev/null 2>&1
-}
-
-bitbucket_pullrequest_dir=$(cd $(dirname $0)/.. && pwd)
-
-if not_installed docker; then
-  echo "# docker is not installed! run the following commands:"
-  echo "    brew install docker"
-  echo "    brew cask install docker-machine"
-  echo "    docker-machine create dev --driver virtualbox"
-  echo '    eval $(docker-machine env dev)'
-  echo "    docker login"
-  exit 1
-fi
-
-name=laurentverbruggen/concourse-bitbucket-pullrequest-resource
-cd $bitbucket_pullrequest_dir
-docker build --rm . -t $name
-docker push $name
+docker build --pull --rm --tag mm62/concourse-bitbucket-pullrequest-resource-test .
+docker rmi mm62/concourse-bitbucket-pullrequest-resource-test

@@ -1,3 +1,5 @@
+#!/bin/bash
+
 load_pubkey() {
   local private_key_path=$TMPDIR/git-resource-private-key
 

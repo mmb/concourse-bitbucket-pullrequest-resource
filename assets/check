@@ -42,6 +42,7 @@ only_when_mergeable=$(jq -r '.source.only_when_mergeable // "false"' < "$payload
 only_when_asked=$(jq -r '.source.only_when_asked // "false"' < "$payload")
 rebuild_when_target_changed=$(jq -r '.source.rebuild_when_target_changed // "false"' < "$payload")
 rebuild_phrase=$(jq -r '.source.rebuild_phrase // "test this please"' < "$payload")
+CURRENT_VERSION_DATE=$(jq -r '.version.date // "0"' < "$payload")
 
 configure_git_ssl_verification "$skip_ssl_verification"
 configure_git_global "${git_config_payload}"
@@ -58,10 +59,13 @@ if [ "$rebuild_when_target_changed" == "true" ]; then
 fi
 
 # collect all pull requests from uri
-pull_requests=$(git ls-remote "$uri" | grep -E "/pull\-requests/[0-9]+/${prq_branch}" | cat)
+REMOTES=$(git ls-remote "$uri")
+set +e
+PULL_REQUESTS=$(echo "$REMOTES" | grep -E "/pull\\-requests/[0-9]+/${prq_branch}")
+set -e
 
 versions="[]"
-if [ -n "$pull_requests" ]; then
+if [ -n "$PULL_REQUESTS" ]; then
   log "Calculating repository specifics"
   # determine repository name for calling REST api
   repo_name=$(basename "$uri" | sed "s/.git$//")
@@ -83,9 +87,11 @@ if [ -n "$pull_requests" ]; then
     # verify target branch of prq
     prq=$(bitbucket_pullrequest "$repo_host" "$repo_project" "$repo_name" "$prq_number" "" "$skip_ssl_verification")
 
-    if [ "$prq" = "ERROR" ]; then
+    if [ "$prq" = "NO_SUCH_PULL_REQUEST" ]; then
       continue
     fi
+
+    PULL_REQUEST_DATE=$(echo "$prq" | jq -r '.updatedDate')
 
     log "Pull request #${prq_number}"
 
@@ -95,8 +101,7 @@ if [ -n "$pull_requests" ]; then
       if [ "$only_when_mergeable" == "true" -o "$only_without_conflicts" == "true" ]; then
         prq_merge=$(bitbucket_pullrequest_merge "$repo_host" "$repo_project" "$repo_name" "$prq_number" "" "$skip_ssl_verification")
 
-        if [ "$prq_merge" = "ERROR" ]; then
-          #continue if already merged
+        if [ "$prq_merge" = "ALREADY_MERGED" ] || [ "$prq_merge" = "DECLINED" ]; then
           continue
         fi
 
@@ -110,7 +115,6 @@ if [ -n "$pull_requests" ]; then
       fi
 
       # edit timestamp to version to force new build when rebuild_phrase is included in comments
-      prq_verify_date=$(echo "$prq" | jq -r '.createdDate')
       skip_build=false
       comments=$(bitbucket_pullrequest_overview_comments "$repo_host" "$repo_project" "$repo_name" "$prq_number" "" "$skip_ssl_verification" | jq -c '.[]')
       if [ -n "$comments" ]; then
@@ -126,20 +130,29 @@ if [ -n "$pull_requests" ]; then
 
           # edit timestamp to force new build when rebuild_phrase is included in comments
           if echo "$text" | grep -Ec "$rebuild_phrase" > /dev/null; then
-            prq_verify_date=$(echo "$comment" | jq -r '.createdDate')
+            PULL_REQUEST_DATE=$(echo "$comment" | jq -r '.createdDate')
             break
           fi
         done <<< "$comments"
       fi
 
-      # add prq to versions
-      if [ "$skip_build" == "false" ]; then
-        pretty_date=$(date_from_epoch_seconds "$(( ($prq_verify_date + 500) / 1000))")
-        versions+=" + [{ id: \"$prq_number\", hash: \"$prq_hash\", date: \"$pretty_date\", change: $prq_verify_date }]"
+      if [ "$PULL_REQUEST_DATE" -lt "$CURRENT_VERSION_DATE" ]; then
+        continue
       fi
 
+      # add prq to versions
+      if [ "$skip_build" == "false" ]; then
+        versions+=" + [{ id: \"$prq_number\", hash: \"$prq_hash\", date: \"$PULL_REQUEST_DATE\" }]"
+      fi
     fi
-  done <<< "$pull_requests"
+  done <<< "$PULL_REQUESTS"
 fi
 
-jq -n "$versions | sort_by(.change) | map(del(.change))"  >&3
+# On the first request return only the current version.
+if [ "$CURRENT_VERSION_DATE" -eq "0" ]; then
+  jq -n "$versions | sort_by((.date | tonumber), (.id | tonumber), .hash) | .[-1:]" > /tmp/check_result
+else
+  jq -n "$versions | sort_by((.date | tonumber), (.id | tonumber), .hash)" > /tmp/check_result
+fi
+
+cat /tmp/check_result >&3

@@ -1,19 +1,18 @@
-FROM gliderlabs/alpine:edge
+FROM alpine:3.7
 
-RUN apk --update add \
-  ca-certificates \
-  bash \
-  jq \
-  curl \
-  git \
-  openssh-client
+RUN apk --no-cache add \
+  bash=4.4.19-r1 \
+  ca-certificates=20171114-r0 \
+  curl=7.60.0-r1 \
+  git=2.15.0-r1 \
+  jq=1.5-r5 \
+  openssh-client=7.5_p1-r8
 
 # can't `git pull` unless we set these
 RUN git config --global user.email "git@localhost" && \
     git config --global user.name "git"
 
-ADD scripts/install_git_lfs.sh install_git_lfs.sh
+COPY scripts/install_git_lfs.sh install_git_lfs.sh
 RUN ./install_git_lfs.sh
 
-ADD assets/ /opt/resource/
-RUN chmod +x /opt/resource/*
+COPY assets /opt/resource

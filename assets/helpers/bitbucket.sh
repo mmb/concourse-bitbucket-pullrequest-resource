@@ -72,10 +72,15 @@ bitbucket_request() {
     jq -c '.values' < "$request_result"
   elif [ "$(jq -c '.errors' < "$request_result")" == "null" ]; then
     jq '.' < "$request_result"
-  elif grep 'This pull request has already been merged' ${request_result} > /dev/null 2>&1; then
-    printf "ERROR"
-  elif grep NoSuchPullRequestException ${request_result} > /dev/null 2>&1; then
-    printf "ERROR"
+  elif grep -q NoSuchPullRequestException "$request_result"; then
+    printf "NO_SUCH_PULL_REQUEST"
+    return
+  elif grep -q 'This pull request has already been merged' "$request_result"; then
+    printf "ALREADY_MERGED"
+    return
+  elif grep -q 'This pull request has been declined and must be reopened before it can be merged' "$request_result"; then
+    printf "DECLINED"
+    return
   else
     log "Bitbucket request ($request_url) failed: $(cat $request_result)"
     exit 1

@@ -147,7 +147,9 @@ repo_project=$(basename $(dirname "$uri"))
 # verify target branch of prq
 prq=$(bitbucket_pullrequest "$repo_host" "$repo_project" "$repo_name" "$prq_id" "" "$skip_ssl_verification")
 
-if [ "$prq" != "ERROR" ]; then
+if [ "$prq" != "NO_SUCH_PULL_REQUEST" ] && \
+   [ "$prq" != "ALREADY_MERGED" ] && \
+   [ "$prq" != "DECLINED" ]; then
   branch=$(echo "$prq" | jq -r '.fromRef.displayId')
 fi
 

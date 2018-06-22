@@ -1,3 +1,5 @@
+#!/bin/bash
+
 export TMPDIR=${TMPDIR:-/tmp}
 
 hash() {
