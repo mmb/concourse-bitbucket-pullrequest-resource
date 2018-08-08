@@ -150,7 +150,6 @@ if [ "$prq" != "NO_SUCH_PULL_REQUEST" ] && \
   branch=$(echo "$prq" | jq -r '.fromRef.displayId')
 fi
 
-
 # expose configuration of pull request that can be used in container
 git config --add pullrequest.id $prq_id
 git config --add pullrequest.source $source_commit

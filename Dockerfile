@@ -3,8 +3,8 @@ FROM alpine:3.7
 RUN apk --no-cache add \
   bash=4.4.19-r1 \
   ca-certificates=20171114-r0 \
-  curl=7.60.0-r1 \
-  git=2.15.0-r1 \
+  curl=7.61.0-r0 \
+  git=2.15.2-r0 \
   jq=1.5-r5 \
   openssh-client=7.5_p1-r8
 

@@ -40,6 +40,8 @@ only_when_asked=$(jq -r '.source.only_when_asked // "false"' < "$payload")
 rebuild_when_target_changed=$(jq -r '.source.rebuild_when_target_changed // "false"' < "$payload")
 rebuild_phrase=$(jq -r '.source.rebuild_phrase // "test this please"' < "$payload")
 CURRENT_VERSION_DATE=$(jq -r '.version.date // "0"' < "$payload")
+paths=$(jq -r '.source.paths // []' < "${payload}")
+ignore_paths=$(jq -r '.source.ignore_paths // []' < "${payload}")
 
 configure_git_ssl_verification "$skip_ssl_verification"
 configure_git_global "${git_config_payload}"
@@ -134,6 +136,11 @@ if [ -n "$PULL_REQUESTS" ]; then
       fi
 
       if [ "$PULL_REQUEST_DATE" -lt "$CURRENT_VERSION_DATE" ]; then
+        continue
+      fi
+
+      has_changes_in_specified_paths=$(does_pullrequest_include_changes_in_paths "$repo_host" "$repo_project" "$repo_name" "$prq_number" "$paths" "$ignore_paths" "" "$skip_ssl_verification")
+      if [ "${has_changes_in_specified_paths}" != "true" ]; then
         continue
       fi
 

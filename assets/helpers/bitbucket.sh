@@ -66,8 +66,9 @@ bitbucket_request() {
 
   if [ "$(jq -r '.isLastPage' < "$request_result")" == "false" ]; then
     local nextPage=$(jq -r '.nextPageStart' < "$request_result")
-    local nextResult=$(bitbucket_request "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8" "start=${nextPage}&limit=${VALUES_LIMIT}")
-    jq -c '.values' < "$request_result" | jq -c ". + $nextResult"
+    bitbucket_request "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8" "start=${nextPage}&limit=${VALUES_LIMIT}" > tmp.json
+
+    jq -s -c '.[0].values + .[1]' "$request_result" "tmp.json"
   elif [ "$(jq -c '.values' < "$request_result")" != "null" ]; then
     jq -c '.values' < "$request_result"
   elif [ "$(jq -c '.errors' < "$request_result")" == "null" ]; then
@@ -82,7 +83,7 @@ bitbucket_request() {
     printf "DECLINED"
     return
   else
-    log "Bitbucket request ($request_url) failed: $(cat $request_result)"
+    log "Bitbucket request ($request_url) failed: $(cat ${request_result})"
     exit 1
   fi
 
@@ -228,4 +229,86 @@ bitbucket_pullrequest_update_comment_status() {
   # $9: skip ssl verification
   log "Updating pull request comment (id: $6) for status on #$4 for $2/$3"
   bitbucket_request "$1" "projects/$2/repos/$3/pull-requests/$4/comments/$6" "" "{\"text\": \"$5\", \"version\": \"$7\" }" "" "$9" "$8" "PUT"
+}
+
+bitbucket_pullrequest_changes() {
+  # $1: host
+  # $2: project
+  # $3: repository id
+  # $4: pullrequest id
+  # $5: netrc file (default: $HOME/.netrc)
+  # $6: skip ssl verification
+
+  log "Retrieving pull request changes #$4 for $2/$3"
+  bitbucket_request "$1" "projects/$2/repos/$3/pull-requests/$4/changes" "" "" "" "$6" "$5"
+}
+
+does_pullrequest_include_changes_in_paths() {
+  # $1: host
+  # $2: project
+  # $3: repository id
+  # $4: pullrequest id
+  # $5: paths
+  # $6: ignore paths
+  # $7: netrc file (default: $HOME/.netrc)
+  # $8: skip ssl verification
+
+  local paths=$5
+  local ignore_paths=$6
+
+  if [ -z "${paths}" -o "${paths}" == "[]" ] && \
+     [ -z "${ignore_paths}" -o "${ignore_paths}" == "[]" ]; then
+    echo "true"
+
+    return
+  fi
+
+  if [ -z "${paths}" -o "${paths}" == "[]" ]; then
+    paths="[\".*\"]"
+  fi
+
+  if [ -z "${ignore_paths}" ]; then
+    ignore_paths="[]"
+  fi
+
+  set -e -o pipefail
+  local pull_request_changes
+  local changed_files
+  local changed_files_that_match_paths
+  local grep_arguments_for_paths
+
+  pull_request_changes=$(bitbucket_pullrequest_changes "$1" "$2" "$3" "$4" "$7" "$8")
+  changed_files=$(echo "${pull_request_changes}" | jq -r ".[] | .path.toString")
+  grep_arguments_for_paths=$(get_grep_arguments_for_list "${paths}")
+
+  set +e
+  changed_files_that_match_paths="$(echo "${changed_files}" | grep ${grep_arguments_for_paths})"
+  set -e
+
+  local grep_arguments_for_ignore_paths
+  grep_arguments_for_ignore_paths=$(get_grep_arguments_for_list "${ignore_paths}")
+
+  if [ -n "${grep_arguments_for_ignore_paths}" ]; then
+    set +e
+    changed_files_that_match_ignore_paths=$(echo "${changed_files_that_match_paths}" | grep -v ${grep_arguments_for_ignore_paths})
+    set -e
+  else
+    changed_files_that_match_ignore_paths="${changed_files_that_match_paths}"
+  fi
+
+  if [ -n "${changed_files_that_match_ignore_paths}" ]; then
+    echo "true"
+  else
+    echo "false"
+  fi
+}
+
+get_grep_arguments_for_list() {
+  grep_arguments_for_ignore_paths=""
+
+  for element in $(echo $1 | jq -r ".[]"); do
+    grep_arguments_for_ignore_paths="${grep_arguments_for_ignore_paths} -e ${element}"
+  done
+
+  echo "${grep_arguments_for_ignore_paths}"
 }
