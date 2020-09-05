@@ -148,6 +148,7 @@ if [ "$prq" != "NO_SUCH_PULL_REQUEST" ] && \
    [ "$prq" != "ALREADY_MERGED" ] && \
    [ "$prq" != "DECLINED" ]; then
   branch=$(echo "$prq" | jq -r '.fromRef.displayId')
+  base_branch=$(echo "$prq" | jq -r '.toRef.displayId')
 fi
 
 
@@ -158,6 +159,7 @@ git config --add pullrequest.target $target_commit
 git config --add pullrequest.merge $ref
 git config --add pullrequest.date "$prq_date"
 git config --add pullrequest.branch "$branch"
+git config --add pullrequest.base "$base_branch"
 
 jq -n "{
   version: $(jq '.version' < "$payload"),

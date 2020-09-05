@@ -97,7 +97,19 @@ It will allow you to build all versions instead of only the latest.
 
 Submodules are initialized and updated recursively.
 
-Note: the name of the branch from which the pull request has been created is stored in the special git config `pullrequest.branch` so that you can use it as reference in your pipeline.
+Note: this resource stores some parameters in the git config. Here is the list:
+
+| Key                  | Comment                |
+| -------------------- | ---------------------- |
+| `pullrequest.id`     | Pull request ID.       |
+| `pullrequest.source` | Source git commit ref. |
+| `pullrequest.target` | Target git commit ref. |
+| `pullrequest.merge`  | Merge commit ref.      |
+| `pullrequest.date`   | PR date.               |
+| `pullrequest.branch` | Source branch.         |
+| `pullrequest.base`   | Target branch.         |
+
+Run `$ git config [key]` to retrieve data.
 
 #### Parameters
 
