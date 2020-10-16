@@ -46,6 +46,7 @@ disable_git_lfs=$(jq -r '(.params.disable_git_lfs // false)' < "$payload")
 
 prq_id=$(jq -r '.version.id // ""' < "$payload")
 prq_date=$(jq -r '.version.date // ""' < "$payload")
+prq_hash=$(jq -r '.version.hash // ""' < "$payload")
 
 configure_git_ssl_verification "$skip_ssl_verification"
 configure_git_global "${git_config_payload}"
@@ -71,8 +72,7 @@ log "Cloning $uri in $destination"
 git clone $depthflag "$uri" "$destination"
 cd "$destination"
 
-git fetch $depthflag origin "+refs/${branch}:refs/remotes/origin/${branch}"
-git checkout -B $branch origin/$branch
+git checkout $prq_hash
 
 ref=$(git rev-parse HEAD)
 
@@ -118,9 +118,16 @@ if [ "$disable_git_lfs" != "true" ]; then
   git submodule foreach "git lfs fetch && git lfs checkout"
 fi
 
-# calculate source and target commit
-source_commit=$(git rev-list --parents -1 $ref | awk '{print $3}')
-target_commit=$(git rev-list --parents -1 $ref | awk '{print $2}')
+repo_name=$(basename "$uri" | sed "s/.git$//")
+repo_project=$(basename $(dirname "$uri"))
+uri_parser "$uri"
+repo_host="${uri_schema}://${uri_address}"
+repo_host=${repo_host}$(getBasePathOfBitbucket)
+
+prq=$(bitbucket_pullrequest "$repo_host" "$repo_project" "$repo_name" "$prq_id" "" "$skip_ssl_verification")
+
+source_commit=$(echo "$prq" | jq --raw-output '.fromRef.latestCommit')
+target_commit=$(echo "$prq" | jq --raw-output '.toRef.latestCommit')
 
 if [ -z "$source_commit" ]; then
   log "Unable to determine source commit from merge commit $ref. Please verify depth configuration."

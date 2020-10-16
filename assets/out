@@ -101,7 +101,7 @@ if [ "$rebuild_when_target_changed" == "true" ]; then
   prq_branch="merge"
 fi
 
-prq_hash=$(echo "$ls_remote" | grep -E "/pull\-requests/${prq_number}/${prq_branch}" | awk '{print $1}')
+prq_hash=$(git config --get pullrequest.source | cat)
 
 if [ -z "$prq_hash" ]; then
   log "Failed to determine pull request hash from id $prq_number in \n$ls_remote"
@@ -124,8 +124,8 @@ case "$status" in
 esac
 
 # set build status on commit in bitbucket, this has to be the latest source commit or the pull request won't pick it up
-source_commit=$(git rev-list --parents -1 $merge_commit | awk '{print $3}')
-target_commit=$(git rev-list --parents -1 $merge_commit | awk '{print $2}')
+source_commit=$prq_hash
+target_commit=$(git config --get pullrequest.target | cat)
 
 # determine repository name for calling REST api
 repo_name=$(basename "$uri" | sed "s/.git$//")

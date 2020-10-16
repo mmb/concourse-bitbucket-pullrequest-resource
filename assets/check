@@ -57,26 +57,22 @@ if [ "$rebuild_when_target_changed" == "true" ]; then
   prq_branch="merge"
 fi
 
-# collect all pull requests from uri
-REMOTES=$(git ls-remote "$uri")
-set +e
-PULL_REQUESTS=$(echo "$REMOTES" | grep -E "/pull\\-requests/[0-9]+/${prq_branch}")
-set -e
+# collect all pull requests from api
+log "Calculating repository specifics"
+# determine repository name for calling REST api
+repo_name=$(basename "$uri" | sed "s/.git$//")
+repo_project=$(basename $(dirname "$uri"))
 
+# parse uri and retrieve host
+uri_parser "$uri"
+repo_host="${uri_schema}://${uri_address}"
+
+repo_host=${repo_host}$(getBasePathOfBitbucket)
+
+PULL_REQUESTS=$(bitbucket_pullrequests "$repo_host" "$repo_project" "$repo_name" "" "$skip_ssl_verification" | jq --raw-output "sort_by(.id) | .[] | .${prq_branch}Ref.latestCommit + \" refs/pull-requests/\" + (.id|tostring) + \"/from\"")
 
 versions="[]"
 if [ -n "$PULL_REQUESTS" ]; then
-  log "Calculating repository specifics"
-  # determine repository name for calling REST api
-  repo_name=$(basename "$uri" | sed "s/.git$//")
-  repo_project=$(basename $(dirname "$uri"))
-
-  # parse uri and retrieve host
-  uri_parser "$uri"
-  repo_host="${uri_schema}://${uri_address}"
-
-  repo_host=${repo_host}$(getBasePathOfBitbucket)
-
   versions="[]"
   while read pull_request ; do
     sleep $sleep_between_fetches  # throttle requests to avoid excessive load to server
