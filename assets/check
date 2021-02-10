@@ -34,7 +34,7 @@ skip_ssl_verification=$(jq -r '.source.skip_ssl_verification // false' < ${paylo
 git_config_payload=$(jq -r '.source.git_config // []' < "$payload")
 
 only_for_branch=$(jq -r '.source.only_for_branch // "."' < "$payload")
-only_without_conflicts=$(jq -r '.source.only_without_conflicts // "true"' < "$payload")
+only_without_conflicts=$(jq -r '.source.only_without_conflicts // "false"' < "$payload")
 only_when_mergeable=$(jq -r '.source.only_when_mergeable // "false"' < "$payload")
 only_when_asked=$(jq -r '.source.only_when_asked // "false"' < "$payload")
 sleep_between_fetches=$(jq -r '.source.sleep_between_fetches // "0"' < "$payload")
