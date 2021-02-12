@@ -127,8 +127,11 @@ if [ -n "$PULL_REQUESTS" ]; then
 
           # edit timestamp to force new build when rebuild_phrase is included in comments
           if echo "$text" | grep -Ec "$rebuild_phrase" > /dev/null; then
-            PULL_REQUEST_DATE=$(echo "$comment" | jq -r '.createdDate')
-            break
+            COMMENT_DATE=$(echo "$comment" | jq -r '.createdDate')
+            if (( COMMENT_DATE > PULL_REQUEST_DATE )); then
+              PULL_REQUEST_DATE=$COMMENT_DATE
+              break
+            fi
           fi
         done <<< "$comments"
       fi
